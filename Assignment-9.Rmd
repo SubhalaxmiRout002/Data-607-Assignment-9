@@ -1,0 +1,159 @@
+---
+title: "Data 607 Assignment 9 - Web APIs"
+author: "Subhalaxmi Rout"
+date: "3/29/2020"
+output:
+  pdf_document: default
+  prettydoc::html_pretty: 
+  html_document:
+    theme: cayman
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##  Assignment overview
+
+ The New York Times web site provides a rich set of APIs, as described here: https://developer.nytimes.com/apis </br>
+You’ll need to start by signing up for an API key.
+
+Your task is to choose one of the New York Times APIs, construct an interface in R to read in the JSON data, and transform it into an R DataFrame.
+
+### Introduction
+
+The aim of this assignment is the use of the New York Times web site API to create a data frame. 
+ 
+ + Signed in New York Times
+ + Registered for the API key
+ + Chose `Article search` API
+ + Set search keyword - `Coronavirus`
+
+The result shows the key-word  `Coronavirus`  available article. 
+
+### Load Library
+
+```{r message=FALSE, warning=FALSE}
+# loaded necessary library
+library(jsonlite)
+library(dplyr)
+library(DT)
+library(httr)
+library(ggplot2)
+```
+
+### Load data
+
+```{r}
+# intialize api key
+api_key <- "u5CCFWy8iVIWy5O86FPxnA93zWhJVlCY"
+
+# initialize search word
+search_word <- "Coronavirus"
+
+# url for Article search api
+url <- "https://api.nytimes.com/svc/search/v2/articlesearch.json?q="
+
+# pass parameter such as search word and api_key
+url <- paste0(url,search_word,"&api-key=",api_key,sep = "")
+
+# store the value in a data frame
+article <- jsonlite::fromJSON(url, flatten = TRUE) %>% data.frame()
+
+# put data in to table format
+DT::datatable(article, options = list(pageLength = 2))
+
+```
+
+
+### Select relevant column 
+ In the data set we can see 33 columns, out of 33 columns I chose below columns. 
+ 
+ + response.docs.abstract <- Abstract
+ + response.docs.web_url <- URL
+ + response.docs.source <- Source
+ + response.docs.document_type <- DocType
+ + response.docs.word_count <- WordCount
+ + response.docs.headline.main <- HeadLine
+ + response.docs.byline.original <- ByLine
+
+ 
+```{r message=FALSE, warning=FALSE}
+ df_article <- article %>% 
+  dplyr::select (response.docs.abstract,response.docs.web_url
+ , response.docs.source, response.docs.document_type, response.docs.word_count, 
+ response.docs.headline.main, response.docs.byline.original) %>% 
+  dplyr::rename("Abstract" = response.docs.abstract,"URL" = response.docs.web_url,
+                  "Source" = response.docs.source, "DocType" = response.docs.document_type, 
+                  "WordCount" = response.docs.word_count, "HeadLine" = response.docs.headline.main, 
+                "Author" = response.docs.byline.original)
+
+DT::datatable(df_article, options = list(pageLength = 2))
+```
+
+### Lonest article 
+
+Author name and article wordcount is present in dataset. Here we find out which is the longest article on `Coronavirus`.
+
+```{r, fig.width= 12, fig.height=10}
+df_article_long <- data.frame(cbind(df_article$Author, df_article$WordCount))
+# rename columns name
+df_article_long <- df_article_long %>% dplyr::rename("Author" = X1, "WordCount" = X2 )
+# change data type of wordcount column 
+df_article_long$WordCount <- as.integer(as.character(df_article_long$WordCount))
+# replace "BY" with ""
+df_article_long$Author <- gsub( "By ", "",df_article_long$Author) 
+# arrange in desc order
+df_article_long <- df_article_long %>% arrange(desc(WordCount))
+
+ggplot2::ggplot(data = df_article_long, aes(x = Author, y = WordCount)) + 
+  geom_bar(aes(reorder(Author,WordCount),WordCount),stat = "identity",fill = "steelblue") + 
+  coord_flip() + xlab("Author") + ylab("Word Count") +
+  ggtitle("Longest article on Corona virus") +
+  theme(plot.title = element_text(hjust = 0.5),panel.background = element_rect(fill = "white", color = NA)) +
+  geom_text(aes( y = WordCount,label=WordCount), hjust = -0.20, color="Black", size=3.5)
+
+```
+
+###  Search key-word as a user input
+
+This function will take the search word as user input and will return corresponding articles. 
+
+Passed search word `politics`, user can pass any word, based on that word this function will return data.
+
+```{r message=FALSE, warning=FALSE}
+ArticleAPI <- function(word)
+  
+  {
+  api_key <- "u5CCFWy8iVIWy5O86FPxnA93zWhJVlCY"
+  
+  url <-  paste("https://api.nytimes.com/svc/search/v2/articlesearch.json?q=",word,"&api-key=u5CCFWy8iVIWy5O86FPxnA93zWhJVlCY",sep="")
+  
+  paste0("Here is data for key-word: ", word)
+  
+  #get seems to fail sometimes
+  df <- httr::RETRY("GET", url, times = 100, pause_base = 1)
+
+  df <- content(df,as="text")
+  
+  df <-  as.data.frame(fromJSON(df))
+  
+  #clean up the column names
+  colnames(df) <- gsub("^.*\\.","", colnames(df))
+  
+  return(df)
+}
+
+ArticleAPI("politics")
+
+```
+
+### Conclusion
+
+This assignment taught us, how to using API to get data, manipulate data and do the analysis. Using `ArticleAPI` function users can get corresponding data present in the New York Times article search API.
+
+
+
+
+
